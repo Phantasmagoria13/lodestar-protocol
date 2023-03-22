@@ -151,8 +151,8 @@ contract CErc20 is CToken, CErc20Interface {
      * @param token The address of the ERC-20 token to sweep
      */
     function sweepToken(EIP20NonStandardInterface token) external override {
-        require(msg.sender == admin, "CErc20::sweepToken: only admin can sweep tokens");
-        require(address(token) != underlying, "CErc20::sweepToken: can not sweep underlying token");
+        require(msg.sender == admin, "Only admin can sweep tokens");
+        require(address(token) != underlying, "Can not sweep underlying token");
         uint256 balance = token.balanceOf(address(this));
         token.transfer(admin, balance);
     }

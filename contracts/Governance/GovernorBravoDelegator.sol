@@ -34,13 +34,13 @@ contract GovernorBravoDelegator is GovernorBravoDelegatorStorage, GovernorBravoE
      * @param implementation_ The address of the new implementation for delegation
      */
     function _setImplementation(address implementation_) public {
-        require(msg.sender == admin, "GovernorBravoDelegator::_setImplementation: admin only");
+        require(msg.sender == admin, "!Admin");
         require(implementation_ != address(0), "GovernorBravoDelegator::_setImplementation: invalid implementation address");
 
         address oldImplementation = implementation;
         implementation = implementation_;
 
-        emit NewImplementation(oldImplementation, implementation);
+        emit NewImplementation(oldImplementation, implementation_);
     }
 
     /**

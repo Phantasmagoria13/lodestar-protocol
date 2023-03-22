@@ -42,8 +42,6 @@ contract FaucetNonStandardToken is NonStandardToken {
  * @notice A test token that is malicious and tries to re-enter callers
  */
 contract FaucetTokenReEntrantHarness {
-    using SafeMath for uint256;
-
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
@@ -88,7 +86,7 @@ contract FaucetTokenReEntrantHarness {
 
     function allocateTo(address _owner, uint256 value) public {
         balanceOf_[_owner] += value;
-        totalSupply_ += value;
+        totalSupply_ = totalSupply_ + value;
         emit Transfer(address(this), _owner, value);
     }
 
@@ -97,27 +95,27 @@ contract FaucetTokenReEntrantHarness {
     }
 
     function allowance(address owner, address spender) public reEnter("allowance") returns (uint256 remaining) {
-        return allowance_[owner][spender];
+        remaining = allowance_[owner][spender];
     }
 
     function approve(address spender, uint256 amount) public reEnter("approve") returns (bool success) {
         _approve(msg.sender, spender, amount);
-        return true;
+        success = true;
     }
 
     function balanceOf(address owner) public reEnter("balanceOf") returns (uint256 balance) {
-        return balanceOf_[owner];
+        balance = balanceOf_[owner];
     }
 
     function transfer(address dst, uint256 amount) public reEnter("transfer") returns (bool success) {
         _transfer(msg.sender, dst, amount);
-        return true;
+        success = true;
     }
 
     function transferFrom(address src, address dst, uint256 amount) public reEnter("transferFrom") returns (bool success) {
         _transfer(src, dst, amount);
-        _approve(src, msg.sender, allowance_[src][msg.sender].sub(amount));
-        return true;
+        _approve(src, msg.sender, allowance_[src][msg.sender] - amount);
+        success = true;
     }
 
     function _approve(address owner, address spender, uint256 amount) internal {
@@ -129,8 +127,8 @@ contract FaucetTokenReEntrantHarness {
 
     function _transfer(address src, address dst, uint256 amount) internal {
         require(dst != address(0));
-        balanceOf_[src] = balanceOf_[src].sub(amount);
-        balanceOf_[dst] = balanceOf_[dst].add(amount);
+        balanceOf_[src] -= amount;
+        balanceOf_[dst] += amount;
         emit Transfer(src, dst, amount);
     }
 }

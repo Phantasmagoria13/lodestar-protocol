@@ -42,13 +42,13 @@ contract SushiOracle is Exponential {
     //ADMIN FUNCTIONS
 
     function _setPoolContract(address newPoolContract) public {
-        require(msg.sender == admin, "Only the admin can update the pool contract.");
+        require(msg.sender == admin, "Only the admin can update");
         poolContract = newPoolContract;
         emit poolContractUpdated(newPoolContract);
     }
 
     function _setAdmin(address newAdmin) public {
-        require(msg.sender == admin, "Only the admin can update the admin");
+        require(msg.sender == admin, "Only the admin can update");
         admin = newAdmin;
         emit adminUpdated(newAdmin);
     }

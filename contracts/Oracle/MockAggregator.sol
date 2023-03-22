@@ -14,13 +14,11 @@ contract MockAggregator {
         view
         returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)
     {
-        uint80 _roundId = 1;
-        int256 _answer = price;
-        uint256 _startedAt = 1;
-        uint256 _updatedAt = 1;
-        uint80 _answeredInRound = 1;
-
-        return (_roundId, _answer, _startedAt, _updatedAt, _answeredInRound);
+        uint80 roundId = 1;
+        int256 answer = price;
+        uint256 startedAt = 1;
+        uint256 updatedAt = 1;
+        uint80 answeredInRound = 1;
     }
 
     function decimals() public view returns (uint8) {

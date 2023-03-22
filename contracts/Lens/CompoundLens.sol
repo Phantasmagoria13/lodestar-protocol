@@ -40,13 +40,13 @@ interface GovernorBravoInterface {
     }
     struct Proposal {
         uint id;
-        address proposer;
         uint eta;
         uint startBlock;
         uint endBlock;
         uint forVotes;
         uint againstVotes;
         uint abstainVotes;
+        address proposer;
         bool canceled;
         bool executed;
     }
@@ -66,7 +66,6 @@ interface GovernorBravoInterface {
 contract CompoundLens {
     address public constant nullAddress = address(0);
     struct CTokenMetadata {
-        address cToken;
         uint exchangeRateCurrent;
         uint supplyRatePerBlock;
         uint borrowRatePerBlock;
@@ -75,9 +74,10 @@ contract CompoundLens {
         uint totalReserves;
         uint totalSupply;
         uint totalCash;
-        bool isListed;
         uint collateralFactorMantissa;
         address underlyingAssetAddress;
+        address cToken;
+        bool isListed;
         uint cTokenDecimals;
         uint underlyingDecimals;
         uint compSupplySpeed;
@@ -92,7 +92,7 @@ contract CompoundLens {
         // Getting comp speeds is gnarly due to not every network having the
         // split comp speeds from Proposal 62 and other networks don't even
         // have comp speeds.
-        uint compSupplySpeed = 0;
+        uint compSupplySpeed;
         (bool compSupplySpeedSuccess, bytes memory compSupplySpeedReturnData) = address(comptroller).call(
             abi.encodePacked(comptroller.compSupplySpeeds.selector, abi.encode(address(cToken)))
         );
@@ -100,7 +100,7 @@ contract CompoundLens {
             compSupplySpeed = abi.decode(compSupplySpeedReturnData, (uint));
         }
 
-        uint compBorrowSpeed = 0;
+        uint compBorrowSpeed;
         (bool compBorrowSpeedSuccess, bytes memory compBorrowSpeedReturnData) = address(comptroller).call(
             abi.encodePacked(comptroller.compBorrowSpeeds.selector, abi.encode(address(cToken)))
         );
@@ -124,7 +124,7 @@ contract CompoundLens {
         // Getting comp speeds is gnarly due to not every network having the
         // split comp speeds from Proposal 62 and other networks don't even
         // have comp speeds.
-        uint borrowCap = 0;
+        uint borrowCap;
         (bool borrowCapSuccess, bytes memory borrowCapReturnData) = address(comptroller).call(
             abi.encodePacked(comptroller.borrowCaps.selector, address(cToken))
         );
@@ -188,8 +188,11 @@ contract CompoundLens {
     function cTokenMetadataAll(CToken[] calldata cTokens) external returns (CTokenMetadata[] memory) {
         uint cTokenCount = cTokens.length;
         CTokenMetadata[] memory res = new CTokenMetadata[](cTokenCount);
-        for (uint i = 0; i < cTokenCount; i++) {
+        for (uint i; i < cTokenCount;) {
             res[i] = cTokenMetadata(cTokens[i]);
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
@@ -237,8 +240,11 @@ contract CompoundLens {
     ) external returns (CTokenBalances[] memory) {
         uint cTokenCount = cTokens.length;
         CTokenBalances[] memory res = new CTokenBalances[](cTokenCount);
-        for (uint i = 0; i < cTokenCount; i++) {
+        for (uint i; i < cTokenCount;) {
             res[i] = cTokenBalances(cTokens[i], account);
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
@@ -259,8 +265,11 @@ contract CompoundLens {
     function cTokenUnderlyingPriceAll(CToken[] calldata cTokens) external returns (CTokenUnderlyingPrice[] memory) {
         uint cTokenCount = cTokens.length;
         CTokenUnderlyingPrice[] memory res = new CTokenUnderlyingPrice[](cTokenCount);
-        for (uint i = 0; i < cTokenCount; i++) {
+        for (uint i; i < cTokenCount;) {
             res[i] = cTokenUnderlyingPrice(cTokens[i]);
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
@@ -295,7 +304,7 @@ contract CompoundLens {
     ) public view returns (GovReceipt[] memory) {
         uint proposalCount = proposalIds.length;
         GovReceipt[] memory res = new GovReceipt[](proposalCount);
-        for (uint i = 0; i < proposalCount; i++) {
+        for (uint i; i < proposalCount;) {
             GovernorAlpha.Receipt memory receipt = governor.getReceipt(proposalIds[i], voter);
             res[i] = GovReceipt({
                 proposalId: proposalIds[i],
@@ -303,6 +312,9 @@ contract CompoundLens {
                 support: receipt.support,
                 votes: receipt.votes
             });
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
@@ -321,7 +333,7 @@ contract CompoundLens {
     ) public view returns (GovBravoReceipt[] memory) {
         uint proposalCount = proposalIds.length;
         GovBravoReceipt[] memory res = new GovBravoReceipt[](proposalCount);
-        for (uint i = 0; i < proposalCount; i++) {
+        for (uint i; i < proposalCount;) {
             GovernorBravoInterface.Receipt memory receipt = governor.getReceipt(proposalIds[i], voter);
             res[i] = GovBravoReceipt({
                 proposalId: proposalIds[i],
@@ -329,13 +341,15 @@ contract CompoundLens {
                 support: receipt.support,
                 votes: receipt.votes
             });
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
 
     struct GovProposal {
         uint proposalId;
-        address proposer;
         uint eta;
         address[] targets;
         uint[] values;
@@ -345,6 +359,7 @@ contract CompoundLens {
         uint endBlock;
         uint forVotes;
         uint againstVotes;
+        address proposer;
         bool canceled;
         bool executed;
     }
@@ -377,7 +392,8 @@ contract CompoundLens {
         uint[] calldata proposalIds
     ) external view returns (GovProposal[] memory) {
         GovProposal[] memory res = new GovProposal[](proposalIds.length);
-        for (uint i = 0; i < proposalIds.length; i++) {
+        uint len = proposalIds.length;
+        for (uint i; i < len;) {
             (
                 address[] memory targets,
                 uint[] memory values,
@@ -400,13 +416,15 @@ contract CompoundLens {
                 executed: false
             });
             setProposal(res[i], governor, proposalIds[i]);
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
 
     struct GovBravoProposal {
         uint proposalId;
-        address proposer;
         uint eta;
         address[] targets;
         uint[] values;
@@ -417,6 +435,7 @@ contract CompoundLens {
         uint forVotes;
         uint againstVotes;
         uint abstainVotes;
+        address proposer;
         bool canceled;
         bool executed;
     }
@@ -445,7 +464,8 @@ contract CompoundLens {
         uint[] calldata proposalIds
     ) external view returns (GovBravoProposal[] memory) {
         GovBravoProposal[] memory res = new GovBravoProposal[](proposalIds.length);
-        for (uint i = 0; i < proposalIds.length; i++) {
+        uint len = proposalIds.length;
+        for (uint i; i < len;) {
             (
                 address[] memory targets,
                 uint[] memory values,
@@ -469,6 +489,9 @@ contract CompoundLens {
                 executed: false
             });
             setBravoProposal(res[i], governor, proposalIds[i]);
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }
@@ -529,11 +552,15 @@ contract CompoundLens {
         uint32[] calldata blockNumbers
     ) external view returns (CompVotes[] memory) {
         CompVotes[] memory res = new CompVotes[](blockNumbers.length);
-        for (uint i = 0; i < blockNumbers.length; i++) {
+        uint len = blockNumbers.length;
+        for (uint i; i < len;) {
             res[i] = CompVotes({
                 blockNumber: uint256(blockNumbers[i]),
                 votes: uint256(comp.getPriorVotes(account, blockNumbers[i]))
             });
+            unchecked {
+                ++i;
+            }
         }
         return res;
     }

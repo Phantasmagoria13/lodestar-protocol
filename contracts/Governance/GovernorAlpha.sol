@@ -36,9 +36,6 @@ contract GovernorAlpha {
         /// @notice Unique id for looking up a proposal
         uint id;
 
-        /// @notice Creator of the proposal
-        address proposer;
-
         /// @notice The timestamp that the proposal will be available for execution, set once the vote succeeds
         uint eta;
 
@@ -65,6 +62,9 @@ contract GovernorAlpha {
 
         /// @notice Current number of votes in opposition to this proposal
         uint againstVotes;
+
+        /// @notice Creator of the proposal
+        address proposer;
 
         /// @notice Flag marking whether the proposal has been canceled
         bool canceled;
@@ -107,10 +107,10 @@ contract GovernorAlpha {
     mapping (address => uint) public latestProposalIds;
 
     /// @notice The EIP-712 typehash for the contract's domain
-    bytes32 public constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
+    bytes32 public immutable DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,uint256 chainId,address verifyingContract)");
 
     /// @notice The EIP-712 typehash for the ballot struct used by the contract
-    bytes32 public constant BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,bool support)");
+    bytes32 public immutable BALLOT_TYPEHASH = keccak256("Ballot(uint256 proposalId,bool support)");
 
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(uint id, address proposer, address[] targets, uint[] values, string[] signatures, bytes[] calldatas, uint startBlock, uint endBlock, string description);
@@ -133,6 +133,11 @@ contract GovernorAlpha {
         guardian = guardian_;
     }
 
+    modifier onlyGuardian() {
+        require(msg.sender == guardian, "!Guardian");
+        _;
+    }
+
     function propose(address[] memory targets, uint[] memory values, string[] memory signatures, bytes[] memory calldatas, string memory description) public returns (uint) {
         require(comp.getPriorVotes(msg.sender, sub256(block.number, 1)) > proposalThreshold(), "GovernorAlpha::propose: proposer votes below proposal threshold");
         require(targets.length == values.length && targets.length == signatures.length && targets.length == calldatas.length, "GovernorAlpha::propose: proposal function information arity mismatch");
@@ -142,8 +147,8 @@ contract GovernorAlpha {
         uint latestProposalId = latestProposalIds[msg.sender];
         if (latestProposalId != 0) {
           ProposalState proposersLatestProposalState = state(latestProposalId);
-          require(proposersLatestProposalState != ProposalState.Active, "GovernorAlpha::propose: one live proposal per proposer, found an already active proposal");
-          require(proposersLatestProposalState != ProposalState.Pending, "GovernorAlpha::propose: one live proposal per proposer, found an already pending proposal");
+          require(proposersLatestProposalState != ProposalState.Active, "Found an already active proposal");
+          require(proposersLatestProposalState != ProposalState.Pending, "Found an already pending proposal");
         }
 
         uint startBlock = add256(block.number, votingDelay());
@@ -153,7 +158,7 @@ contract GovernorAlpha {
         uint proposalId = proposalCount;
         Proposal storage newProposal = proposals[proposalId];
         // This should never happen but add a check in case.
-        require(newProposal.id == 0, "GovernorAlpha::propose: ProposalID collsion");
+        require(newProposal.id == 0, "ProposalID collsion");
         newProposal.id = proposalId;
         newProposal.proposer = msg.sender;
         newProposal.eta = 0;
@@ -178,38 +183,50 @@ contract GovernorAlpha {
         require(state(proposalId) == ProposalState.Succeeded, "GovernorAlpha::queue: proposal can only be queued if it is succeeded");
         Proposal storage proposal = proposals[proposalId];
         uint eta = add256(block.timestamp, timelock.delay());
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        uint len = proposal.targets.length;
+        for (uint i; i < len;) {
             _queueOrRevert(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], eta);
+            unchecked {
+                ++i;
+            }
         }
         proposal.eta = eta;
         emit ProposalQueued(proposalId, eta);
     }
 
     function _queueOrRevert(address target, uint value, string memory signature, bytes memory data, uint eta) internal {
-        require(!timelock.queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))), "GovernorAlpha::_queueOrRevert: proposal action already queued at eta");
+        require(!timelock.queuedTransactions(keccak256(abi.encode(target, value, signature, data, eta))), "Action already queued at eta");
         timelock.queueTransaction(target, value, signature, data, eta);
     }
 
     function execute(uint proposalId) public payable {
-        require(state(proposalId) == ProposalState.Queued, "GovernorAlpha::execute: proposal can only be executed if it is queued");
+        require(state(proposalId) == ProposalState.Queued, "Can be executed if it is queued");
         Proposal storage proposal = proposals[proposalId];
         proposal.executed = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        uint len = proposal.targets.length;
+        for (uint i; i < len;) {
             timelock.executeTransaction{value: proposal.values[i]}(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
+            unchecked {
+                ++i;
+            }
         }
         emit ProposalExecuted(proposalId);
     }
 
     function cancel(uint proposalId) public {
         ProposalState state = state(proposalId);
-        require(state != ProposalState.Executed, "GovernorAlpha::cancel: cannot cancel executed proposal");
+        require(state != ProposalState.Executed, "Cannot cancel executed proposal");
 
         Proposal storage proposal = proposals[proposalId];
-        require(msg.sender == guardian || comp.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold(), "GovernorAlpha::cancel: proposer above threshold");
+        require(msg.sender == guardian || comp.getPriorVotes(proposal.proposer, sub256(block.number, 1)) < proposalThreshold(), "Proposer above threshold");
 
         proposal.canceled = true;
-        for (uint i = 0; i < proposal.targets.length; i++) {
+        uint len = proposal.targets.length;
+        for (uint i; i < len;) {
             timelock.cancelTransaction(proposal.targets[i], proposal.values[i], proposal.signatures[i], proposal.calldatas[i], proposal.eta);
+            unchecked {
+                ++i;
+            }
         }
 
         emit ProposalCanceled(proposalId);
@@ -225,7 +242,7 @@ contract GovernorAlpha {
     }
 
     function state(uint proposalId) public view returns (ProposalState) {
-        require(proposalCount >= proposalId && proposalId > 0, "GovernorAlpha::state: invalid proposal id");
+        require(proposalCount >= proposalId && proposalId > 0, "Invalid proposal id");
         Proposal storage proposal = proposals[proposalId];
         if (proposal.canceled) {
             return ProposalState.Canceled;
@@ -260,10 +277,10 @@ contract GovernorAlpha {
     }
 
     function _castVote(address voter, uint proposalId, bool support) internal {
-        require(state(proposalId) == ProposalState.Active, "GovernorAlpha::_castVote: voting is closed");
+        require(state(proposalId) == ProposalState.Active, "Voting is closed");
         Proposal storage proposal = proposals[proposalId];
         Receipt storage receipt = proposal.receipts[voter];
-        require(receipt.hasVoted == false, "GovernorAlpha::_castVote: voter already voted");
+        require(receipt.hasVoted == false, "Voter already voted");
         uint96 votes = comp.getPriorVotes(voter, proposal.startBlock);
 
         if (support) {
@@ -279,23 +296,19 @@ contract GovernorAlpha {
         emit VoteCast(voter, proposalId, support, votes);
     }
 
-    function __acceptAdmin() public {
-        require(msg.sender == guardian, "GovernorAlpha::__acceptAdmin: sender must be gov guardian");
+    function __acceptAdmin() public onlyGuardian {
         timelock.acceptAdmin();
     }
 
-    function __abdicate() public {
-        require(msg.sender == guardian, "GovernorAlpha::__abdicate: sender must be gov guardian");
+    function __abdicate() public onlyGuardian {
         guardian = address(0);
     }
 
-    function __queueSetTimelockPendingAdmin(address newPendingAdmin, uint eta) public {
-        require(msg.sender == guardian, "GovernorAlpha::__queueSetTimelockPendingAdmin: sender must be gov guardian");
+    function __queueSetTimelockPendingAdmin(address newPendingAdmin, uint eta) public onlyGuardian {
         timelock.queueTransaction(address(timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
     }
 
-    function __executeSetTimelockPendingAdmin(address newPendingAdmin, uint eta) public {
-        require(msg.sender == guardian, "GovernorAlpha::__executeSetTimelockPendingAdmin: sender must be gov guardian");
+    function __executeSetTimelockPendingAdmin(address newPendingAdmin, uint eta) public onlyGuardian {
         timelock.executeTransaction(address(timelock), 0, "setPendingAdmin(address)", abi.encode(newPendingAdmin), eta);
     }
 

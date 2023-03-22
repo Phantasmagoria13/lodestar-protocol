@@ -32,7 +32,7 @@ abstract contract CToken is CTokenInterface, ExponentialNoError, TokenErrorRepor
         string memory symbol_,
         uint8 decimals_
     ) public {
-        require(msg.sender == admin, "only admin may initialize the market");
+        require(msg.sender == admin, "!Admin");
         require(accrualBlockNumber == 0 && borrowIndex == 0, "market may only be initialized once");
 
         // Set initial exchange rate
@@ -81,7 +81,7 @@ abstract contract CToken is CTokenInterface, ExponentialNoError, TokenErrorRepor
         }
 
         /* Get the allowance, infinite for the account owner */
-        uint startingAllowance = 0;
+        uint startingAllowance;
         if (spender == src) {
             startingAllowance = type(uint).max;
         } else {
@@ -439,7 +439,7 @@ abstract contract CToken is CTokenInterface, ExponentialNoError, TokenErrorRepor
          * And write them into storage
          */
         totalSupply = totalSupply + mintTokens;
-        accountTokens[minter] = accountTokens[minter] + mintTokens;
+        accountTokens[minter] += mintTokens;
 
         /* We emit a Mint event, and a Transfer event */
         emit Mint(minter, actualMintAmount, mintTokens);
@@ -546,7 +546,7 @@ abstract contract CToken is CTokenInterface, ExponentialNoError, TokenErrorRepor
          *  Note: Avoid token reentrancy attacks by writing reduced supply before external transfer.
          */
         totalSupply = totalSupply - redeemTokens;
-        accountTokens[redeemer] = accountTokens[redeemer] - redeemTokens;
+        accountTokens[redeemer] -= redeemTokens;
 
         /*
          * We invoke doTransferOut for the redeemer and the redeemAmount.
@@ -882,8 +882,8 @@ abstract contract CToken is CTokenInterface, ExponentialNoError, TokenErrorRepor
         /* We write the calculated values into storage */
         totalReserves = totalReservesNew;
         totalSupply = totalSupply - protocolSeizeTokens;
-        accountTokens[borrower] = accountTokens[borrower] - seizeTokens;
-        accountTokens[liquidator] = accountTokens[liquidator] + liquidatorSeizeTokens;
+        accountTokens[borrower] -= seizeTokens;
+        accountTokens[liquidator] += liquidatorSeizeTokens;
 
         /* Emit a Transfer event */
         emit Transfer(borrower, liquidator, liquidatorSeizeTokens);

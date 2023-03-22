@@ -90,6 +90,11 @@ contract PriceOracleProxyETH is Exponential {
         lodeOracle = lodeOracle_;
     }
 
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "!Admin");
+        _;
+    }
+
     /**
      * @notice Get the underlying price of a listed cToken asset
      * @param cToken The cToken to get the underlying price of
@@ -185,28 +190,25 @@ contract PriceOracleProxyETH is Exponential {
      * @notice Set guardian for price oracle proxy
      * @param _guardian The new guardian
      */
-    function _setGuardian(address _guardian) external {
-        require(msg.sender == admin, "only the admin may set new guardian");
+    function _setGuardian(address _guardian) external onlyAdmin {
         guardian = _guardian;
-        emit SetGuardian(guardian);
+        emit SetGuardian(_guardian);
     }
 
     /**
      * @notice Set admin for price oracle proxy
      * @param _admin The new admin
      */
-    function _setAdmin(address _admin) external {
-        require(msg.sender == admin, "only the admin may set new admin");
+    function _setAdmin(address _admin) external onlyAdmin {
         admin = _admin;
-        emit SetAdmin(admin);
+        emit SetAdmin(_admin);
     }
 
     /**
      * @notice Set guardian for price oracle proxy
      * @param _newLodeOracle The new LODE oracle contract
      */
-    function _setLodeOracle(SushiOracleInterface _newLodeOracle) external {
-        require(msg.sender == admin, "only the admin may set new LODE Oracle");
+    function _setLodeOracle(SushiOracleInterface _newLodeOracle) external onlyAdmin {
         require(_newLodeOracle.isSushiOracle(), "Invalid Contract");
         lodeOracle = address(_newLodeOracle);
         emit newLodeOracle(lodeOracle);
@@ -216,8 +218,7 @@ contract PriceOracleProxyETH is Exponential {
      * @notice Set guardian for price oracle proxy
      * @param _newGlpOracle The new LODE oracle contract
      */
-    function _setGlpOracle(PlvGLPOracleInterface _newGlpOracle) external {
-        require(msg.sender == admin, "only the admin may set new GLP Oracle");
+    function _setGlpOracle(PlvGLPOracleInterface _newGlpOracle) external onlyAdmin {
         require(_newGlpOracle.isGLPOracle(), "Invalid Contract");
         glpOracleAddress = address(_newGlpOracle);
         emit newGlpOracle(glpOracleAddress);
@@ -234,17 +235,21 @@ contract PriceOracleProxyETH is Exponential {
         address[] calldata sources,
         AggregatorBase[] calldata bases
     ) external {
-        require(msg.sender == admin || msg.sender == guardian, "only the admin or guardian may set the aggregators");
-        require(cTokenAddresses.length == sources.length && cTokenAddresses.length == bases.length, "mismatched data");
-        for (uint256 i = 0; i < cTokenAddresses.length; i++) {
+        require(msg.sender == admin || msg.sender == guardian, "Only the admin or guardian");
+        require(cTokenAddresses.length == sources.length && cTokenAddresses.length == bases.length, "Mismatched data");
+        uint len = cTokenAddresses.length;
+        for (uint256 i; i < len;) {
             if (sources[i] != address(0)) {
-                require(msg.sender == admin, "Only the admin or guardian can clear the aggregators");
+                require(msg.sender == admin, "Only the admin or guardian");
             }
             aggregators[cTokenAddresses[i]] = AggregatorInfo({
                 source: AggregatorV3Interface(sources[i]),
                 base: bases[i]
             });
             emit AggregatorUpdated(cTokenAddresses[i], sources[i], bases[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 }

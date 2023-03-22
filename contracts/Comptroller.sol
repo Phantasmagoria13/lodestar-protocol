@@ -107,6 +107,16 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
         admin = msg.sender;
     }
 
+    modifier onlyPauseGuardianOrAdmin() {
+        require(msg.sender == pauseGuardian || msg.sender == admin, "!Guardian OR Admin");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "!Admin");
+        _;
+    }
+
     /*** Assets You Are In ***/
 
     /**
@@ -139,10 +149,13 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
         uint len = cTokens.length;
 
         uint[] memory results = new uint[](len);
-        for (uint i = 0; i < len; i++) {
+        for (uint i; i < len;) {
             CToken cToken = CToken(cTokens[i]);
 
             results[i] = uint(addToMarketInternal(cToken, msg.sender));
+            unchecked {
+                ++i;
+            }
         }
 
         return results;
@@ -219,10 +232,13 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
         CToken[] memory userAssetList = accountAssets[msg.sender];
         uint len = userAssetList.length;
         uint assetIndex = len;
-        for (uint i = 0; i < len; i++) {
+        for (uint i; i < len;) {
             if (userAssetList[i] == cToken) {
                 assetIndex = i;
                 break;
+            }
+            unchecked {
+                ++i;
             }
         }
 
@@ -791,7 +807,8 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
 
         // For each asset the account is in
         CToken[] memory assets = accountAssets[account];
-        for (uint i = 0; i < assets.length; i++) {
+        uint len = assets.length;
+        for (uint i; i < len;) {
             CToken asset = assets[i];
 
             // Read the balances and exchange rate from the cToken
@@ -842,6 +859,9 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
                     borrowAmount,
                     vars.sumBorrowPlusEffects
                 );
+            }
+            unchecked {
+                ++i;
             }
         }
 
@@ -925,13 +945,10 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
      * @param newCloseFactorMantissa New close factor, scaled by 1e18
      * @return uint 0=success, otherwise a failure
      */
-    function _setCloseFactor(uint newCloseFactorMantissa) external returns (uint) {
-        // Check caller is admin
-        require(msg.sender == admin, "only admin can set close factor");
-
+    function _setCloseFactor(uint newCloseFactorMantissa) external onlyAdmin returns (uint) {
         uint oldCloseFactorMantissa = closeFactorMantissa;
         closeFactorMantissa = newCloseFactorMantissa;
-        emit NewCloseFactor(oldCloseFactorMantissa, closeFactorMantissa);
+        emit NewCloseFactor(oldCloseFactorMantissa, newCloseFactorMantissa);
 
         return uint(Error.NO_ERROR);
     }
@@ -1034,8 +1051,12 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
     }
 
     function _addMarketInternal(address cToken) internal {
-        for (uint i = 0; i < allMarkets.length; i++) {
+        uint len = allMarkets.length;
+        for (uint i; i < len;) {
             require(allMarkets[i] != CToken(cToken), "market already added");
+            unchecked {
+                ++i;
+            }
         }
         allMarkets.push(CToken(cToken));
     }
@@ -1082,9 +1103,12 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
 
         require(numMarkets != 0 && numMarkets == numBorrowCaps, "invalid input");
 
-        for (uint i = 0; i < numMarkets; i++) {
+        for (uint i; i < numMarkets;) {
             borrowCaps[address(cTokens[i])] = newBorrowCaps[i];
             emit NewBorrowCap(cTokens[i], newBorrowCaps[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1092,9 +1116,7 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
      * @notice Admin function to change the Borrow Cap Guardian
      * @param newBorrowCapGuardian The address of the new Borrow Cap Guardian
      */
-    function _setBorrowCapGuardian(address newBorrowCapGuardian) external {
-        require(msg.sender == admin, "only admin can set borrow cap guardian");
-
+    function _setBorrowCapGuardian(address newBorrowCapGuardian) external onlyAdmin {
         // Save current value for inclusion in log
         address oldBorrowCapGuardian = borrowCapGuardian;
 
@@ -1122,9 +1144,12 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
 
         require(numMarkets != 0 && numMarkets == numSupplyCaps, "invalid input");
 
-        for (uint i = 0; i < numMarkets; i++) {
+        for (uint i; i < numMarkets;) {
             supplyCaps[address(cTokens[i])] = newSupplyCaps[i];
             emit NewSupplyCap(cTokens[i], newSupplyCaps[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -1132,9 +1157,7 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
      * @notice Admin function to change the Supply Cap Guardian
      * @param newSupplyCapGuardian The address of the new Supply Cap Guardian
      */
-    function _setSupplyCapGuardian(address newSupplyCapGuardian) external {
-        require(msg.sender == admin, "only admin can set borrow cap guardian");
-
+    function _setSupplyCapGuardian(address newSupplyCapGuardian) external onlyAdmin {
         // Save current value for inclusion in log
         address oldSupplyCapGuardian = supplyCapGuardian;
 
@@ -1162,43 +1185,39 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
         pauseGuardian = newPauseGuardian;
 
         // Emit NewPauseGuardian(OldPauseGuardian, NewPauseGuardian)
-        emit NewPauseGuardian(oldPauseGuardian, pauseGuardian);
+        emit NewPauseGuardian(oldPauseGuardian, newPauseGuardian);
 
         return uint(Error.NO_ERROR);
     }
 
-    function _setMintPaused(CToken cToken, bool state) public returns (bool) {
-        require(markets[address(cToken)].isListed, "cannot pause a market that is not listed");
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+    function _setMintPaused(CToken cToken, bool state) public onlyPauseGuardianOrAdmin returns (bool) {
+        require(markets[address(cToken)].isListed, "Market is not listed");
+        require(msg.sender == admin || state == true, "Only admin can unpause");
 
         mintGuardianPaused[address(cToken)] = state;
         emit ActionPaused(cToken, "Mint", state);
         return state;
     }
 
-    function _setBorrowPaused(CToken cToken, bool state) public returns (bool) {
-        require(markets[address(cToken)].isListed, "cannot pause a market that is not listed");
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+    function _setBorrowPaused(CToken cToken, bool state) public onlyPauseGuardianOrAdmin returns (bool) {
+        require(markets[address(cToken)].isListed, "Cannot pause a market that is not listed");
+        require(msg.sender == admin || state == true, "Only admin can unpause");
 
         borrowGuardianPaused[address(cToken)] = state;
         emit ActionPaused(cToken, "Borrow", state);
         return state;
     }
 
-    function _setTransferPaused(bool state) public returns (bool) {
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+    function _setTransferPaused(bool state) public onlyPauseGuardianOrAdmin returns (bool) {
+        require(msg.sender == admin || state == true, "Only admin can unpause");
 
         transferGuardianPaused = state;
         emit ActionPaused("Transfer", state);
         return state;
     }
 
-    function _setSeizePaused(bool state) public returns (bool) {
-        require(msg.sender == pauseGuardian || msg.sender == admin, "only pause guardian and admin can pause");
-        require(msg.sender == admin || state == true, "only admin can unpause");
+    function _setSeizePaused(bool state) public onlyPauseGuardianOrAdmin returns (bool) {
+        require(msg.sender == admin || state == true, "Only admin can unpause");
 
         seizeGuardianPaused = state;
         emit ActionPaused("Seize", state);
@@ -1206,8 +1225,8 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
     }
 
     function _become(Unitroller unitroller) public {
-        require(msg.sender == unitroller.admin(), "only unitroller admin can change brains");
-        require(unitroller._acceptImplementation() == 0, "change not authorized");
+        require(msg.sender == unitroller.admin(), "Only unitroller admin can change brains");
+        require(unitroller._acceptImplementation() == 0, "Change not authorized");
     }
 
     /**
@@ -1422,25 +1441,41 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
      * @param suppliers Whether or not to claim COMP earned by supplying
      */
     function claimComp(address[] memory holders, CToken[] memory cTokens, bool borrowers, bool suppliers) public {
-        for (uint i = 0; i < cTokens.length; i++) {
+        uint len = cTokens.length;
+        for (uint i; i < len;) {
             CToken cToken = cTokens[i];
             require(markets[address(cToken)].isListed, "market must be listed");
             if (borrowers == true) {
                 Exp memory borrowIndex = Exp({mantissa: cToken.borrowIndex()});
                 updateCompBorrowIndex(address(cToken), borrowIndex);
-                for (uint j = 0; j < holders.length; j++) {
+                uint len = holders.length;
+                for (uint j; j < len;) {
                     distributeBorrowerComp(address(cToken), holders[j], borrowIndex);
+                    unchecked {
+                        ++j;
+                    }
                 }
             }
             if (suppliers == true) {
                 updateCompSupplyIndex(address(cToken));
-                for (uint j = 0; j < holders.length; j++) {
+                uint len = holders.length;
+                for (uint j; j < len;) {
                     distributeSupplierComp(address(cToken), holders[j]);
+                    unchecked {
+                        ++j;
+                    }
                 }
             }
+            unchecked {
+                ++i;
+            }
         }
-        for (uint j = 0; j < holders.length; j++) {
+        uint len = holders.length;
+        for (uint j; j < len;) {
             compAccrued[holders[j]] = grantCompInternal(holders[j], compAccrued[holders[j]]);
+            unchecked {
+                ++j;
+            }
         }
     }
 
@@ -1491,8 +1526,11 @@ contract Comptroller is ComptrollerV8Storage, ComptrollerInterface, ComptrollerE
             "Comptroller::_setCompSpeeds invalid input"
         );
 
-        for (uint i = 0; i < numTokens; ++i) {
+        for (uint i; i < numTokens;) {
             setCompSpeedInternal(cTokens[i], supplySpeeds[i], borrowSpeeds[i]);
+            unchecked {
+                ++i;
+            }
         }
     }
 

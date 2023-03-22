@@ -46,7 +46,7 @@ contract Unitroller is UnitrollerAdminStorage, ComptrollerErrorReporter {
 
         pendingComptrollerImplementation = newPendingImplementation;
 
-        emit NewPendingImplementation(oldPendingImplementation, pendingComptrollerImplementation);
+        emit NewPendingImplementation(oldPendingImplementation, newPendingImplementation);
 
         return uint(Error.NO_ERROR);
     }
